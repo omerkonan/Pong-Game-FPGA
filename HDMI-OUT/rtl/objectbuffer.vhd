@@ -15,18 +15,23 @@ entity objectbuffer is
     );
     port (
         video_active     : in  std_logic;
-        score1           : in integer; 
-        score2           : in integer;
+        score1           : in std_logic_vector(3 downto 0); 
+        score2           : in std_logic_vector(3 downto 0);
         pixel_x, pixel_y : in  std_logic_vector(OBJECT_SIZE-1 downto 0);
         usr1_y, usr2_y   : in  std_logic_vector(OBJECT_SIZE-1 downto 0);
         ball_x, ball_y   : in  std_logic_vector(OBJECT_SIZE-1 downto 0);
-        backgrnd_rgb     : in  std_logic_vector(PIXEL_SIZE-1 downto 0);
-        rgb              : out std_logic_vector(PIXEL_SIZE-1 downto 0)
+        rgb              : out std_logic_vector(PIXEL_SIZE-1 downto 0);
+        pclk             : in std_logic;
+        i_hsync, i_vsync : in std_logic;
+        o_hsync, o_vsync : out std_logic
     );
 end objectbuffer;
 
 architecture rtl of objectbuffer is
     
+    signal i_video_active_s, i_hsync_s, i_vsync_s : std_logic;
+    signal rgb_i : std_logic_vector(PIXEL_SIZE-1 downto 0);
+    signal backgrnd_rgb   : std_logic_vector(PIXEL_SIZE-1 downto 0)  := x"000000"; -- black
     --create a scoreboard seperator bar named bar_t
     constant BAR_T_SIZE_X: integer := 48;
     constant BAR_T_SIZE_Y: integer := 10;
@@ -601,6 +606,8 @@ architecture rtl of objectbuffer is
     signal usr1_scr_x_r : unsigned (OBJECT_SIZE-1 downto 0);
     signal usr1_scr_y_b : unsigned (OBJECT_SIZE-1 downto 0);
     --rom for usr1_scr
+    signal scr1 : integer := (to_integer(unsigned(score1)));
+    signal scr2 : integer := (to_integer(unsigned(score2)));
     signal rom_addr_usr1,rom_col_usr1 : unsigned(0 to 15);
     signal rom_bit_usr1 : std_logic;
     --x,y coordinate of the usr1_scr
@@ -615,14 +622,29 @@ architecture rtl of objectbuffer is
     signal rom_bit_usr2 : std_logic;
     -- signals that holds the x, y coordinates
     signal pix_x, pix_y: unsigned (OBJECT_SIZE-1 downto 0);
+    signal pix_x_i, pix_y_i: unsigned (OBJECT_SIZE-1 downto 0);
 
     signal wall_l_on,wall_r_on, wall_b_on, wall_t_on, usr1_on, usr2_on,square_usr1_scr_on, square_usr2_scr_on, square_ball_on, ball_on, usr1_scr_on, usr2_scr_on, scr_board_on,bar_t_on,player1_win_on,square_player1_win_on,player2_win_on,square_player2_win_on: std_logic;
     signal wall_rgb, usr1_rgb, usr2_rgb, ball_rgb, usr1_scr_rgb, usr2_scr_rgb, scr_board_rgb, bar_t_rgb,player1_win_rgb,player2_win_rgb: std_logic_vector(23 downto 0);
 
 begin
-
-    pix_x <= unsigned(pixel_x);
-    pix_y <= unsigned(pixel_y);
+    
+    process (pclk)
+    begin
+        if rising_edge(pclk) then
+            i_hsync_s <= i_hsync;
+            o_hsync <= i_hsync;
+            i_vsync_s <= i_vsync;
+            o_vsync <= i_vsync_s;
+            i_video_active_s <= video_active;
+            pix_x_i <= unsigned(pixel_x);
+            pix_y_i <= unsigned(pixel_y);
+            rgb <= rgb_i;
+        end if;
+     end process;
+     
+    pix_x <= pix_x_i;
+    pix_y <= pix_y_i;
     
     -- draw wall and color
     wall_l_on <= '1' when WALL_L_X_L<=pix_x and pix_x<=WALL_L_X_R else '0'; 
@@ -682,7 +704,7 @@ begin
     rom_col <= pix_x(4 downto 0) - ball_x_l(4 downto 0);
     rom_bit <= BALL_ROM(to_integer(rom_addr))(to_integer(rom_col));
     -- pixel within ball
-    ball_on <= '1' when square_ball_on='1' and rom_bit='1' and  score1 /= 5 and  score2 /= 5 else '0';
+    ball_on <= '1' when square_ball_on='1' and rom_bit='1' and  scr1 /= 5 and  scr2 /= 5 else '0';
     -- ball rgb output
     ball_rgb <= x"FF0000";   -- red
    --draw usr1_scr and color
@@ -718,33 +740,33 @@ begin
     process(rom_bit_usr1, rom_addr_usr1, rom_col_usr1, rom_bit_usr2, rom_addr_usr2, rom_col_usr2) is
     begin
     
-        if score1 = 0 then
+        if scr1 = 0 then
           rom_bit_usr1 <= n_0(to_integer(rom_addr_usr1))(to_integer(rom_col_usr1));
-        elsif score1 = 1 then
+        elsif scr1 = 1 then
           rom_bit_usr1 <= n_1(to_integer(rom_addr_usr1))(to_integer(rom_col_usr1));
-        elsif score1 = 2 then
+        elsif scr1 = 2 then
           rom_bit_usr1 <= n_2(to_integer(rom_addr_usr1))(to_integer(rom_col_usr1));
-        elsif score1 = 3 then
+        elsif scr1 = 3 then
           rom_bit_usr1 <= n_3(to_integer(rom_addr_usr1))(to_integer(rom_col_usr1));
-        elsif score1 = 4 then
+        elsif scr1 = 4 then
           rom_bit_usr1 <= n_4(to_integer(rom_addr_usr1))(to_integer(rom_col_usr1));
-        elsif score1 = 5 then 
+        elsif scr1 = 5 then 
           rom_bit_usr1 <= n_5(to_integer(rom_addr_usr1))(to_integer(rom_col_usr1));
         else 
            rom_bit_usr1 <= n_0(to_integer(rom_addr_usr1))(to_integer(rom_col_usr1));
         
         end if;
-        if score2 = 0 then
+        if scr2 = 0 then
           rom_bit_usr2 <= n_0(to_integer(rom_addr_usr2))(to_integer(rom_col_usr2));
-        elsif score2 = 1 then
+        elsif scr2 = 1 then
           rom_bit_usr2 <= n_1(to_integer(rom_addr_usr2))(to_integer(rom_col_usr2));
-        elsif score2 = 2 then
+        elsif scr2 = 2 then
           rom_bit_usr2 <= n_2(to_integer(rom_addr_usr2))(to_integer(rom_col_usr2));
-        elsif score2 = 3 then
+        elsif scr2 = 3 then
           rom_bit_usr2 <= n_3(to_integer(rom_addr_usr2))(to_integer(rom_col_usr2));
-        elsif score2 = 4 then
+        elsif scr2 = 4 then
           rom_bit_usr2 <= n_4(to_integer(rom_addr_usr2))(to_integer(rom_col_usr2));
-        elsif score2 = 5 then 
+        elsif scr2 = 5 then 
           rom_bit_usr2 <= n_5(to_integer(rom_addr_usr2))(to_integer(rom_col_usr2));
         else 
            rom_bit_usr1 <= n_0(to_integer(rom_addr_usr1))(to_integer(rom_col_usr1));
@@ -779,7 +801,7 @@ begin
     rom_col_player1_win <= (pix_x - player1_win_x_l) mod PLAYER_WIN_SIZE_X;
     rom_bit_player1_win <= PLAYER1_WIN_ROM(to_integer(rom_addr_player1_win))(to_integer(rom_col_player1_win));
     -- pixel within ball
-    player1_win_on <= '1' when square_player1_win_on='1' and rom_bit_player1_win='1' and  score1 = 5  else '0';
+    player1_win_on <= '1' when square_player1_win_on='1' and rom_bit_player1_win='1' and  scr1 = 5  else '0';
     -- ball rgb output
     player1_win_rgb <= x"FF0000";--green
     
@@ -799,46 +821,46 @@ begin
     rom_col_player2_win <= (pix_x - player2_win_x_l) mod PLAYER_WIN_SIZE_X;
     rom_bit_player2_win <= PLAYER2_WIN_ROM(to_integer(rom_addr_player2_win))(to_integer(rom_col_player2_win));
     -- pixel within ball
-    player2_win_on <= '1' when square_player2_win_on='1' and rom_bit_player2_win='1' and  score2 = 5 else '0';
+    player2_win_on <= '1' when square_player2_win_on='1' and rom_bit_player2_win='1' and  scr2 = 5 else '0';
     -- ball rgb output
     player2_win_rgb <= x"0000FF"; --blue
     
     -- display the image based on who is active
     -- note that the order is important
-    process(video_active, wall_l_on, wall_r_on, wall_t_on, wall_b_on, usr1_on, usr2_on, wall_rgb, usr1_rgb, usr2_rgb, ball_rgb, usr1_scr_rgb, usr1_scr_on, usr2_scr_on, backgrnd_rgb, ball_on, bar_t_on,scr_board_on, player1_win_on, player1_win_rgb, player2_win_on, player2_win_rgb) is
+    process(i_video_active_s, wall_l_on, wall_r_on, wall_t_on, wall_b_on, usr1_on, usr2_on, wall_rgb, usr1_rgb, usr2_rgb, ball_rgb, usr1_scr_rgb, usr1_scr_on, usr2_scr_on, backgrnd_rgb, ball_on, bar_t_on,scr_board_on, player1_win_on, player1_win_rgb, player2_win_on, player2_win_rgb) is
     begin
-        if video_active='0' then
-            rgb <= x"000000"; --blank
+        if i_video_active_s='0' then
+            rgb_i <= x"000000"; --blank
         else
             if wall_l_on = '1' then
-                rgb <= wall_rgb;
+                rgb_i <= wall_rgb;
             elsif wall_r_on = '1' then
-                rgb <= wall_rgb;
+                rgb_i <= wall_rgb;
             elsif wall_b_on = '1' then
-                rgb <= wall_rgb;
+                rgb_i <= wall_rgb;
             elsif wall_t_on = '1' then
-                rgb <= wall_rgb;
+                rgb_i <= wall_rgb;
             elsif scr_board_on = '1' then
-                rgb <= scr_board_rgb; 
+                rgb_i <= scr_board_rgb; 
             elsif usr1_scr_on = '1' then
-                rgb <= usr1_scr_rgb;
+                rgb_i <= usr1_scr_rgb;
             elsif usr2_scr_on = '1' then
-                rgb <= usr2_scr_rgb;
+                rgb_i <= usr2_scr_rgb;
             elsif ball_on = '1' then
-                rgb <= ball_rgb;
+                rgb_i <= ball_rgb;
             elsif usr1_on = '1' then
-                rgb <= usr1_rgb;
+                rgb_i <= usr1_rgb;
             elsif usr2_on = '1' then
-                rgb <= usr2_rgb;
+                rgb_i <= usr2_rgb;
             elsif bar_t_on = '1' then
-                rgb <= bar_t_rgb;
+                rgb_i <= bar_t_rgb;
             elsif player2_win_on = '1' then
-                rgb <= player2_win_rgb;
+                rgb_i <= player2_win_rgb;
             elsif player1_win_on = '1' then
-                rgb <= player1_win_rgb;
+                rgb_i <= player1_win_rgb;
             
             else
-                rgb <= backgrnd_rgb; -- x"FFFF00"; -- yellow background
+                rgb_i <= backgrnd_rgb; -- x"FFFF00"; -- yellow background
             end if;
         end if;
     end process;
